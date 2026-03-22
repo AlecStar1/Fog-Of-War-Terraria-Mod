@@ -1,0 +1,39 @@
+Configs: {
+	FowCondig: {
+		DisplayName: Fow Condig
+
+		blackout: {
+			Label: DEBUG MODE
+			Tooltip: ""
+		}
+
+		tilesOrLine: {
+			Tooltip: Okay so you can either have it be tile based or have it act like actual vision. tile is cooler imo
+			Label: lines or tiles
+		}
+
+		bluriness: {
+			Tooltip: ""
+			Label: is it blurred or not?
+		}
+
+		darkness: {
+			Tooltip: 0 is visible, 1 is completely blacked out.
+			Label: How dark is the non-visible parts
+		}
+
+		visionRange: {
+			Tooltip: Defines your vision range
+			Label: How far you can see
+		}
+
+		oldVersion: {
+			Tooltip:
+				'''
+				This is original release version... I uh, don't reccomend unless you wish for pain.
+				 DOESN'T SUPPORT CONFIG OPTIONS
+				'''
+			Label: Older Algorithm
+		}
+	}
+}
