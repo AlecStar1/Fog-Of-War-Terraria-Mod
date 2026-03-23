@@ -64,16 +64,21 @@ namespace fow
                 else
                     return (p1.X - p2.X) / (p1.Y - p2.Y);
             }
-            void setPixel(int x, int y, int color = 0)
+            float tempLog = 0;
+            void setPixel(int x, int y, int color = 0) 
             {
                 //Mod.Logger.InfoFormat("{0} {1}", Main.GameViewMatrix.Zoom.X * 16,(int)( Main.GameViewMatrix.Zoom.X * 16));
-
+                x += 1; y += 1;
                 // 1. Calculate the starting position once
-                int scale = (int)(16 * Main.GameViewMatrix.Zoom.X);
-                Vector2 playerScreenPos = new Vector2(x * scale, y * scale) - Main.screenPosition;
+                int scale = (int)(16 * Main.GameZoomTarget);
+                Vector2 playerScreenPos = new Vector2(x * 16, y * 16) - Main.screenPosition;
                 int startX = (int)playerScreenPos.X - scale / 2;  // + (int)((Main.LocalPlayer.Center.X % 1) * 16);
                 int startY = (int)playerScreenPos.Y - scale / 2;  // + (int)((Main.LocalPlayer.Center.Y % 1) * 16);
-                //Mod.Logger.InfoFormat("{0} {1} {2} {3}", playerScreenPos, startX, startY, (x,y));
+                if (tempLog != 16 * Main.GameZoomTarget)
+                {
+                    tempLog = 16 * Main.GameZoomTarget;
+                    Mod.Logger.InfoFormat("{0} {1} {2} {3}", tempLog, scale, (startX, startY), (x, y));
+                }
                 
                 
                 int minX = Math.Max(0, startX);
@@ -118,9 +123,9 @@ namespace fow
                 if (tile.HasTile && Main.tileSolid[tile.TileType]) setPixel(x, y, 1);
                 else if (tile.HasTile) setPixel(x, y, 2);
                 //if (tile.HasTile) setPixel(x, y, 1);
-                 return false;
+                 //return false;
                 bool isSolid = tile.HasTile && Main.tileSolid[tile.TileType];
-                if (!tile.HasTile && Main.tileSolid[tile.TileType]) Mod.Logger.InfoFormat("{0} {1} {2}", (x,y),tile.HasTile, tile.TileType);
+                //if (!tile.HasTile && Main.tileSolid[tile.TileType]) Mod.Logger.InfoFormat("{0} {1} {2}", (x,y),tile.HasTile, tile.TileType);
                 return isSolid;
 
             }
@@ -349,10 +354,10 @@ namespace fow
                 }
                 //OUTSIDE SWITCH
                 if (x < 0) x = 0;
-                else if (x >= width) x = width - 1;
+                else if (x >= Main.maxTilesX) x = Main.maxTilesX-1;
 
                 if (y < 0) y = 0;
-                else if (y >= height) y = height - 1;
+                else if (y >= Main.maxTilesY) y = Main.maxTilesY-1;
 
                 if (row < 50 && !isTileSolid(x, y)) scan(quad, startingAngle, endAngle, center, row + 1);
                 //for (int col = 0; col <= row; col++)
@@ -374,7 +379,7 @@ namespace fow
                 //if(row < radius && !wasPrevSolid) scan(quad, startingAngle, endAngle, center, row + 1);
             }
             for (int quad = 1; quad <= 8; quad++)
-                scan(quad, 1, 0, Main.LocalPlayer.Center / 16f);
+                scan(quad, 1, 0, Main.LocalPlayer.Center / (16f));
 
 
             Vector2 playerScreenPos = Main.LocalPlayer.Center - Main.screenPosition;
@@ -384,11 +389,6 @@ namespace fow
             //_maskData.SetValue(Color.Green, _maskData.Length / 2);
             TileMask.SetData(_maskData);
             Filters.Scene["FOW:FOW"].GetShader().UseImage(TileMask);
-            Vector2 tileOffset = new Vector2(
-                (Main.screenPosition.X / 16f) % 1f,
-                (Main.screenPosition.Y / 16f) % 1f
-            );
-            //shaderRef.Shader.Parameters["uTileOffset"].SetValue(tileOffset);
             Filters.Scene["FOW:FOW"].GetShader().Shader.Parameters["uMaskSize"].SetValue(new Vector2(TileMask.Width, TileMask.Height));
             Filters.Scene["FOW:FOW"].GetShader().Shader.Parameters["BlackOut"].SetValue(true);
         }
@@ -400,11 +400,11 @@ namespace fow
             float uvOffsetX = tileTargetOffset.X / Main.instance.tileTarget.Width;
             float uvOffsetY = tileTargetOffset.Y / Main.instance.tileTarget.Height;
 
-            shaderRef.Shader.Parameters["TileOffset"].SetValue(new Vector2(uvOffsetX, uvOffsetY));
+            Filters.Scene["FOW:FOW"].GetShader().Shader.Parameters["TileOffset"].SetValue(new Vector2(uvOffsetX, uvOffsetY));
 
             float scaleX = (float)Main.screenWidth  / Main.instance.tileTarget.Width;
             float scaleY = (float)Main.screenHeight / Main.instance.tileTarget.Height;
-            shaderRef.Shader.Parameters["TileScale"].SetValue(new Vector2(scaleX, scaleY));
+            Filters.Scene["FOW:FOW"].GetShader().Shader.Parameters["TileScale"].SetValue(new Vector2(scaleX, scaleY));
             Vector2 playerScreenPos = Main.LocalPlayer.Center - Main.screenPosition;
             shaderRef.Shader.Parameters["PlayerScreenPos"].SetValue(playerScreenPos);
 
