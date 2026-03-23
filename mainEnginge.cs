@@ -1,12 +1,14 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Generic;
 using Terraria;
 using Terraria.Graphics;
 using Terraria.Graphics.Effects;
 using Terraria.Graphics.Shaders;
 using Terraria.ID;
 using Terraria.ModLoader;
+using Terraria.UI;
 namespace fow
 {
     public class mainEnginge : ModSystem
@@ -14,17 +16,26 @@ namespace fow
         public ScreenShaderData shaderRef;
         public static Texture2D TileMask; //the mask passed to the shader
         private Color[] _maskData; // width*height of the mask
-        static public bool OLDERVERSION = false;
+        static public bool OLDERVERSION = true;
+        static public bool DEBUG = false;
+        static public int visionRange = 50;
+        static public float darkness = 255f;
+        static public bool platform = true;
         public override void Load()
         {
             if (Main.dedServ) return;
 
         }
 
-        public override void Unload()
+        public override void ModifyInterfaceLayers(List<GameInterfaceLayer> layers)
         {
-            //TileMask?.Dispose();
-        }
+            int healthBarLayber = layers.FindIndex(layer => layer.Name == "Vanilla: Entity Health Bars");
+            if (healthBarLayber != -1) layers.RemoveAt(healthBarLayber);
+
+            int playerlayer = layers.FindIndex(layer => layer.Name == "Vanilla: MP Player Names");
+            if (playerlayer != -1) layers.RemoveAt(playerlayer);
+        }  
+        
 
         public override void PostUpdateEverything()
         {
@@ -50,7 +61,8 @@ namespace fow
                 TileMask = new Texture2D(Main.graphics.GraphicsDevice, width, height);
                 _maskData = new Color[width * height];
             }
-            System.Array.Fill(_maskData, Color.Black);
+            //Color.Black
+            System.Array.Fill(_maskData, new Color(0f,0f,0f, darkness));
 
             // debateable
             int centerX = startX + width / 2;
@@ -64,71 +76,60 @@ namespace fow
                 else
                     return (p1.X - p2.X) / (p1.Y - p2.Y);
             }
-            float tempLog = 0;
-            void setPixel(int x, int y, int color = 0) 
+            void setPixel(int x, int y, int col = 0)
             {
-                //Mod.Logger.InfoFormat("{0} {1}", Main.GameViewMatrix.Zoom.X * 16,(int)( Main.GameViewMatrix.Zoom.X * 16));
-                x += 1; y += 1;
-                // 1. Calculate the starting position once
-                int scale = (int)(16 * Main.GameZoomTarget);
-                Vector2 playerScreenPos = new Vector2(x * 16, y * 16) - Main.screenPosition;
-                int startX = (int)playerScreenPos.X - scale / 2;  // + (int)((Main.LocalPlayer.Center.X % 1) * 16);
-                int startY = (int)playerScreenPos.Y - scale / 2;  // + (int)((Main.LocalPlayer.Center.Y % 1) * 16);
-                if (tempLog != 16 * Main.GameZoomTarget)
-                {
-                    tempLog = 16 * Main.GameZoomTarget;
-                    Mod.Logger.InfoFormat("{0} {1} {2} {3}", tempLog, scale, (startX, startY), (x, y));
-                }
                 
-                
-                int minX = Math.Max(0, startX);
-                int maxX = Math.Min(width - 1, startX + scale);
-                int minY = Math.Max(0, startY);
-                int maxY = Math.Min(height - 1, startY + scale);
-                Color cl;
-                switch (color)
-                {
-                    case 0:
-                    default:
-                        cl = Color.White;
-                        break;
-                    case 1:
-                        cl = Color.Red;
-                        break;
-                    case 2:
-                        cl = Color.Green;
-                        break;
-                    case 3:
-                        cl = Color.Blue;
-                        break;
+                float zoom = Main.GameViewMatrix.Zoom.X;
+                int scale = (int)Math.Ceiling(16 * zoom);
+                Vector2 worldPos = new Vector2(x * 16f, y * 16f);
+                Vector2 screenPos = worldPos - Main.screenPosition;
+                Vector2 finalPos = Vector2.Transform(screenPos, Main.GameViewMatrix.TransformationMatrix);
 
-                }
+                int startX = (int)finalPos.X;
+                int startY = (int)finalPos.Y;
+
+                int minX = Math.Max(0, startX);
+                int maxX = Math.Min(width, startX + scale);
+                int minY = Math.Max(0, startY);
+                int maxY = Math.Min(height, startY + scale);
+
+                if (minX >= maxX || minY >= maxY) return;
+
+                Color cl = col switch
+                {
+                    1 => Color.Red,
+                    2 => Color.Green,
+                    3 => Color.Blue,
+                    _ => Color.White
+                };
+
 
                 for (int py = minY; py < maxY; py++)
-                {
-                    int rowOffset = py * width;
-                    for (int px = minX; px < maxX; px++)
-                    {
-                        _maskData[px + rowOffset] = cl;
-                    }
-                }
-                //int px = (int)center.X + (x * 16), py = (int)center.Y + (y * 16);
-                //for (int i = 0; i < 16; i++)
-                //    for (int j = 0; j < 16; j++) _maskData[px + i + (py + j) * width] = Color.White;
+                        for (int px = minX; px < maxX; px++)
+                                _maskData[px + py * width] = cl;
+                
             }
             bool isTileSolid(int x, int y)
             {
                 //if (!WorldGen.InWorld((int)x, (int)y)) {  return false; }
                 Tile tile = Main.tile[(int)x, (int)y];
-                if (tile.HasTile && Main.tileSolid[tile.TileType]) setPixel(x, y, 1);
-                else if (tile.HasTile) setPixel(x, y, 2);
+                if(DEBUG)
+                    if (tile.IsActuated || tile.IsHalfBlock || tile.IsTileInvisible || tile.TileType == TileID.Glass || tile.TileType == TileID.Platforms) setPixel(x, y, 3);
+                    else if (tile.HasTile && Main.tileSolid[tile.TileType]) setPixel(x, y, 1);
+                    else if (tile.HasTile) setPixel(x, y, 2);
                 //if (tile.HasTile) setPixel(x, y, 1);
-                 //return false;
-                bool isSolid = tile.HasTile && Main.tileSolid[tile.TileType];
+                //return false;
+                bool isSolid = tile.HasUnactuatedTile && // using this instead tile.hasTile bc we want to see through tiles we cant colide with
+                                !tile.IsHalfBlock && //just looks better imo -- additonally if you have a wall thats a half block, wouldnt you say you would be able to see through?
+                                !tile.IsTileInvisible && // IMO, you should be able see through echo paint, like the invisible cloak ts
+                                tile.TileType != TileID.Glass && // see through glass !!!
+                                (platform?(tile.TileType != TileID.Platforms):true) && // see through platforms - optional
+                                Main.tileSolid[tile.TileType]; // and the final check of making sure its solid
                 //if (!tile.HasTile && Main.tileSolid[tile.TileType]) Mod.Logger.InfoFormat("{0} {1} {2}", (x,y),tile.HasTile, tile.TileType);
                 return isSolid;
 
             }
+            //Main.instance.
 
             // FIRST WE DO QUAD 1 FOR SIMPLE
             void scan(int quad, float startingAngle, float endAngle, Vector2 center, int row = 1)
@@ -147,7 +148,7 @@ namespace fow
                         x = (int)center.X - (int)(startingAngle * row);
                         while (GetSlope(new Vector2(x, y), center, false) >= endAngle)
                         {
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -174,7 +175,7 @@ namespace fow
                         while (GetSlope(new Vector2(x, y), center, false) <= endAngle)
                         {
 
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -200,7 +201,7 @@ namespace fow
                         y = (int)center.Y - (int)(startingAngle * row);
                         while (GetSlope(new Vector2(x, y), center, true) <= endAngle)
                         {
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -227,7 +228,7 @@ namespace fow
                         while (GetSlope(new Vector2(x, y), center, true) >= endAngle)
                         {
                             //setPixel(x, y);
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -254,7 +255,7 @@ namespace fow
                         while (GetSlope(new Vector2(x, y), center, false) >= endAngle)
                         {
                             //setPixel(x, y);
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -280,7 +281,7 @@ namespace fow
                         x = (int)center.X - (int)(startingAngle * row);
                         while (GetSlope(new Vector2(x, y), center, false) <= endAngle)
                         {
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -306,7 +307,7 @@ namespace fow
                         y = (int)center.Y + (int)(startingAngle * row);
                         while (GetSlope(new Vector2(x, y), center, true) <= endAngle)
                         {
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -332,7 +333,7 @@ namespace fow
                         y = (int)center.Y - (int)(startingAngle * row);
                         while (GetSlope(new Vector2(x, y), center, true) >= endAngle)
                         {
-                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= 50)
+                            if (WorldGen.InWorld(x, y) && Vector2.Distance(new Vector2(x, y), center) <= visionRange)
                             {
                                 setPixel(x, y);
                                 if (isTileSolid(x, y))
@@ -359,7 +360,7 @@ namespace fow
                 if (y < 0) y = 0;
                 else if (y >= Main.maxTilesY) y = Main.maxTilesY-1;
 
-                if (row < 50 && !isTileSolid(x, y)) scan(quad, startingAngle, endAngle, center, row + 1);
+                if (row < visionRange && !isTileSolid(x, y)) scan(quad, startingAngle, endAngle, center, row + 1);
                 //for (int col = 0; col <= row; col++)
                 //{    
 
@@ -383,10 +384,12 @@ namespace fow
 
 
             Vector2 playerScreenPos = Main.LocalPlayer.Center - Main.screenPosition;
+            if(DEBUG)
             for (int xOff = 0; xOff < 16; xOff++)
                 for (int yOff = 0; yOff < 16; yOff++)
                     _maskData[(int)playerScreenPos.X - 8 + xOff + (int)(playerScreenPos.Y - 8 + yOff) * width] = Color.Green;
             //_maskData.SetValue(Color.Green, _maskData.Length / 2);
+            setPixel((int)(Main.LocalPlayer.Center.X / 16f), (int)(Main.LocalPlayer.Center.Y / 16f));
             TileMask.SetData(_maskData);
             Filters.Scene["FOW:FOW"].GetShader().UseImage(TileMask);
             Filters.Scene["FOW:FOW"].GetShader().Shader.Parameters["uMaskSize"].SetValue(new Vector2(TileMask.Width, TileMask.Height));

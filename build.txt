@@ -1,5 +1,5 @@
 displayName = Fog of War (CHADS ONLY)
 author = Me, NOT YOU, ME YOU SICK BASTARD DONT TRY TO TAKE CREDIT FOR SOMMETHING YOU DIDNT DO
-version = 1000000.1
+version = 2020202.2
 includeSource = true
 side = Client
